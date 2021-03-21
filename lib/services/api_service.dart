@@ -24,7 +24,7 @@ class ApiService {
         coords,
       ),
       headers: {
-        'Content-Type': 'application/json; charset=utf-8'
+        'Content-Type': 'application/json; charset=utf-8',
       }
     );
   }
@@ -50,7 +50,7 @@ class ApiService {
     }
     if (locationUpdates == null) {
       locationUpdates = _channel.stream.map(
-        (event) => LatLong.fromJson(event),
+        (event) => LatLong.fromJson(jsonDecode(event)),
       );
     }
     _channel.sink.add(

@@ -1,3 +1,4 @@
+import 'package:background_location/background_location.dart';
 import 'package:beamer_app/models/latlong.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -30,6 +31,25 @@ class BeaconView extends StatefulWidget {
 
 class _BeaconViewState extends State<BeaconView> {
   final MapController _mapController = MapController();
+  LatLong currentLocation;
+
+  Future<void> initTracking() async {
+    await BackgroundLocation.startLocationService(distanceFilter: 20);
+    BackgroundLocation.getLocationUpdates((location) {
+      setState(() {
+        currentLocation =
+            LatLong(lat: location.latitude, long: location.longitude);
+      });
+    });
+  }
+
+  @override
+  void initState() {
+    if (widget.type == MapType.FOLLOW) {
+      initTracking();
+    }
+    super.initState();
+  }
 
   @override
   void didUpdateWidget(BeaconView oldWidget) {
@@ -52,8 +72,7 @@ class _BeaconViewState extends State<BeaconView> {
         child: FlutterMap(
           mapController: _mapController,
           options: MapOptions(center: LatLng(-2.20584, -79.90795), zoom: 12),
-          layers: [],
-          nonRotatedLayers: [
+          layers: [
             TileLayerOptions(
               urlTemplate: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
               subdomains: ['a', 'b', 'c'],
@@ -63,11 +82,46 @@ class _BeaconViewState extends State<BeaconView> {
               if (widget.beaconPosition != null)
                 Marker(
                     point: toLatLng(widget.beaconPosition),
-                    builder: (ctx) => Icon(Icons.pin_drop))
+                    builder: (ctx) => Icon(Icons.location_pin)),
+              if (widget.type == MapType.FOLLOW && currentLocation != null)
+                Marker(
+                    point: toLatLng(currentLocation),
+                    builder: (ctx) => Icon(
+                          Icons.location_pin,
+                          color: Theme.of(context).primaryColor,
+                        ))
             ])
+          ],
+          nonRotatedChildren: [
+            if (widget.type == MapType.FOLLOW && currentLocation != null)
+              Positioned(
+                bottom: 0,
+                right: 0,
+                child: Padding(
+                  padding: const EdgeInsets.all(8.0),
+                  child: FloatingActionButton(
+                    child: Icon(Icons.my_location),
+                    onPressed: () => _mapController.fitBounds(
+                      LatLngBounds.fromPoints([
+                        toLatLng(widget.beaconPosition),
+                        toLatLng(currentLocation)
+                      ]),
+                      options: FitBoundsOptions(padding: const EdgeInsets.all(30)),
+                    ),
+                  ),
+                ),
+              )
           ],
         ),
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    if(widget.type == MapType.FOLLOW){
+      BackgroundLocation.stopLocationService();
+    }
+    super.dispose();
   }
 }

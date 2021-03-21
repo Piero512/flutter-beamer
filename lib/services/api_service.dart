@@ -1,11 +1,17 @@
 import 'dart:convert' show jsonEncode, jsonDecode;
 
 import 'package:beamer_app/models/latlong.dart';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:web_socket_channel/web_socket_channel.dart';
 
 class ApiService {
-  final _baseUrl = Uri.parse("https://flutter-beamer.herokuapp.com");
+  final _baseUrl = kDebugMode
+      ? Uri.parse("http://192.168.100.10:3000/")
+      : Uri.parse("https://flutter-beamer.herokuapp.com/");
+  final wsBackend = kDebugMode
+      ? Uri.parse('ws://192.168.100.10:3000/')
+      : Uri.parse("wss://flutter-beamer.herokuapp.com/");
   WebSocketChannel _channel;
   Stream<LatLong> locationUpdates;
 
@@ -18,15 +24,13 @@ class ApiService {
   }
 
   Future<void> updateLocation(String passkey, LatLong coords) {
-    return http.post(
-      _buildUri('api/$passkey/update'),
-      body: jsonEncode(
-        coords,
-      ),
-      headers: {
-        'Content-Type': 'application/json; charset=utf-8',
-      }
-    );
+    return http.post(_buildUri('api/$passkey/update'),
+        body: jsonEncode(
+          coords,
+        ),
+        headers: {
+          'Content-Type': 'application/json; charset=utf-8',
+        });
   }
 
   Future<LatLong> getLastLocation(String passkey) {
@@ -44,14 +48,15 @@ class ApiService {
 
   Stream<LatLong> subscribePasskey(String passkey) {
     if (_channel == null) {
-      _channel = WebSocketChannel.connect(
-        Uri.parse('wss://flutter-beamer.herokuapp.com/'),
-      );
+      _channel = WebSocketChannel.connect(wsBackend);
     }
     if (locationUpdates == null) {
       locationUpdates = _channel.stream.map(
-        (event) => LatLong.fromJson(jsonDecode(event)),
-      );
+        (event) {
+          print("Received data from server: $event");
+          return LatLong.fromJson(jsonDecode(event));
+        },
+      ).asBroadcastStream();
     }
     _channel.sink.add(
       jsonEncode({'action': 'subscribe', 'passkey': passkey}),
